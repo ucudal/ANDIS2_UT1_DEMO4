@@ -11,6 +11,11 @@ import asyncio
 from typing import Dict, Optional
 from datetime import datetime
 import logging
+import csv
+import time
+import hashlib
+from pydantic import BaseModel
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,14 +28,30 @@ KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://localhost:8080")
 KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "demo-realm")
 KEYCLOAK_CLIENT_ID = os.environ.get("KEYCLOAK_CLIENT_ID", "demo-client")
 KEYCLOAK_AUDIENCE = os.environ.get("KEYCLOAK_AUDIENCE", "account")
-# KEYCLOAK_CLIENT_SECRET = os.environ.get("KEYCLOAK_CLIENT_SECRET", "demo-secret")
-
-
 
 # Cache for public keys
 public_keys_cache = {}
 cache_timestamp = None
 CACHE_DURATION = 3600  # Cache for 1 hour
+
+
+def log_action(user: str, action: str, details: dict = {}):
+    """Logs an action to a read-only, forward-only storage,
+    simulated here as a CSV file."""
+    filename = "logs.csv"
+    file_exists = os.path.isfile(filename)
+    fieldnames = ["user", "action", "details", "timestamp"]
+
+    with open(filename, mode="a", newline="", encoding="utf-8") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow({
+            "user": user,
+            "action": action,
+            "details": str(details),
+            "timestamp": time.time()
+        })
 
 async def get_keycloak_public_keys():
     """Fetch public keys from Keycloak's JWKS endpoint"""
@@ -135,16 +156,28 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
             detail="Internal server error"
         )
 
+
+def calculate_data_checksum(data, algorithm="md5"):
+    """Calculates the checksum of a string or bytes object using the specified algorithm."""
+    hasher = hashlib.new(algorithm)
+    if isinstance(data, str):
+        data = data.encode('utf-8')
+    hasher.update(data)
+    return hasher.hexdigest()
+
+
 # Routes
 @app.get("/")
 async def root():
     """Root endpoint with API information"""
     return {
-        "message": "Demo de conceptos de seguridad con Keycloak",
+        "message": "Security concepts demo with Keycloak",
         "endpoints": {
             "/protected": "Protected endpoint requiring valid JWT",
             "/user-info": "Get user information from JWT token",
-            "/token-info": "Get detailed token information"
+            "/token-info": "Get detailed token information",
+            "/checksum": "Calculate checksum of data",
+            "/validate-checksum": "Validate data against a checksum"
         }
     }
 
@@ -337,15 +370,17 @@ async def root():
 @app.get("/protected")
 async def protected_route(token_data: Dict = Depends(verify_token)):
     """Protected route that requires valid JWT token"""
+    user = token_data.get("preferred_username")
+    log_action(user, "Accessed to a protected resource")
     return {
         "message": "Access granted to protected resource",
-        "user": token_data.get("preferred_username", "Unknown"),
+        "user" : user,
         "roles": token_data.get("realm_access", {}).get("roles", [])
     }
 
 @app.get("/confidencial")
-def confidencial(user=Depends(verify_token)):
-    realm_access = user.get("realm_access", {})
+def confidencial(token_data=Depends(verify_token)):
+    realm_access = token_data.get("realm_access", {})
     if not realm_access:
         raise HTTPException(status_code=403, detail="No autorizado")
 
@@ -353,8 +388,11 @@ def confidencial(user=Depends(verify_token)):
     if not roles or "confidencial" not in roles:
         raise HTTPException(status_code=403, detail="No autorizado")
 
-    logger.info(f"user: {user['preferred_username']}, acceso_confidencial")
-    return {"msg": f"Hola {user['preferred_username']}, accediste a información confidencial."}
+    user = token_data.get("preferred_username")
+    log_action(user, "Accessed confidential information")
+    return {
+        "message": f"Hola {token_data['preferred_username']}, accediste a información confidencial."
+    }
 
 
 @app.get("/user-info")
@@ -447,6 +485,32 @@ async def decode_token_endpoint(token: str):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid JWT token: {str(e)}"
         )
+
+
+def calculate_data_checksum(data: str) -> str:
+    # Example: SHA256 checksum as hex string
+    return hashlib.sha256(data.encode('utf-8')).hexdigest()
+
+class DataInput(BaseModel):
+    data: str
+
+
+class ValidationInput(BaseModel):
+    data: str
+    checksum: str
+
+
+@app.post("/checksum")
+def get_checksum(input: DataInput):
+    checksum = calculate_data_checksum(input.data)
+    return {"checksum": checksum}
+
+
+@app.post("/validate-checksum")
+def validate_checksum(input: ValidationInput):
+    expected_checksum = calculate_data_checksum(input.data)
+    is_valid = (expected_checksum == input.checksum)
+    return {"valid": is_valid}
 
 
 # Health check endpoint

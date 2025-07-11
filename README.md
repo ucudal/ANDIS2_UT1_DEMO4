@@ -10,11 +10,34 @@
 
 # Demo de seguridad
 
-Esta demo tiene una sencilla [aplicación web](./main.py) que expone una API
-REST; está implementada en Python usando [fastapi](https://fastapi.tiangolo.com)
-y la ejecutamos con [uvicorn](https://www.uvicorn.org).
+Esta demo tiene una [aplicación web](./main.py) que expone una API REST; está
+implementada en Python usando [fastapi](https://fastapi.tiangolo.com) y la
+ejecutamos con [uvicorn](https://www.uvicorn.org).
 
-En esta demo ...
+La API tiene algunos endpoints de acceso público y otros con diferentes
+requerimientos de seguridad, que usan JSON Web Token o JWT. Estos tokens
+permiten crear datos con firma o cifrado opcional, cuyo contenido —payload— es
+un JSON que afirma ciertos datos —claims—. Los tokens se firman usando un
+secreto privado o una clave pública/privada.
+
+El proveedor de tokens es [Keycloak](https://www.keycloak.org/). La API obtiene
+la clave pública de Keycloack y luego usa esa clave para validar que las
+repuestas cifradas que obtiene de Keycloack fueron firmadas con la
+correspondiente clave privada y también para descrifrar esas respuestas.
+
+```mermaid
+sequenceDiagram
+    participant Client as Comandos curl
+    participant Keycloak as Servidor Keycloak
+    participant API as API REST
+
+    Client->>Keycloak: 1. Obtener un token para un usuario
+    Keycloak-->>Client: 2. JWT Token firmado con la clave privada
+    Client->>API: 3. Llamadas a la API Request con el JWT token
+    API->>Keycloak: 4. Obtiene la clave pública
+    API-->>Keycloak: 5. Clave pública
+    API->>API: 6. Verifica la firma del token
+```
 
 Para ejecutar esta demo usa los comandos que están [aquí](./commands.azcli). Con
 el complemento [Azure CLI
@@ -34,16 +57,16 @@ con [Swagger](http://localhost:5003/docs).
 
 Analiza cómo se implementan en esta demo los siguientes conceptos:
 
-* Confidencialidad: Endpoint que solo puede ser accedido por usuarios
+* Confidencialidad: algunos endpoints que solo puede ser accedidos por usuarios
   autenticados y con un rol específico.
 
-* Integridad: Endpoint que permite modificar datos, pero solo si el token es
-  válido y no ha sido alterado.
+* Integridad: cómo asegurar que los datos no hayan sido modificados.
 
-* No-repudio: Registro de acciones de los usuarios mediante logs firmados o
+* No-repudio: cómo se registran las acciones de los usuarios mediante logs o
   inmutables.
 
-* Rendición de cuentas: Endpoint que muestra el historial de acciones del
-  usuario autenticado.
+* Rendición de cuentas: cómo se registra el historial de acciones de los
+  usuarios usuario autenticado.
 
-* Autenticidad: Endpoint que retorna la identidad autenticada por Keycloak.
+* Autenticidad: algunos endpoints retornan la identidad de los usuarios
+  autenticados.

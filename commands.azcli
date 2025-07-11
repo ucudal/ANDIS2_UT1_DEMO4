@@ -108,9 +108,18 @@ curl -X GET "http://localhost:5003/protected" \
 curl -X GET "http://localhost:5003/confidencial" \
   -H "Authorization: Bearer $TOKEN"
 
-curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/integridad
-curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/no-repudio
-curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/rendicion-cuentas
-curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/autenticidad
+# Integridad de datos: calcular y validar checksums
+# Usa este endpoint para calcular el checksum de un dato
+curl -X POST http://localhost:5003/checksum \
+  -H "Content-Type: application/json" \
+  -d '{"data": "Hello world!"}'
 
+# El dato sin modificar debería tener el mismo checksum
+curl -X POST http://localhost:5003/validate-checksum \
+  -H "Content-Type: application/json" \
+  -d '{"data": "Hello world!", "checksum": "c0535e4be2b79ffd93291305436bf889314e4a3faec05ecffcbb7df31ad9e51a"}'
 
+# Con el dato modificado, el checksum anterior ya no es válido
+curl -X POST http://localhost:5003/validate-checksum \
+  -H "Content-Type: application/json" \
+  -d '{"data": "¡Hola mundo!", "checksum": "c0535e4be2b79ffd93291305436bf889314e4a3faec05ecffcbb7df31ad9e51a"}'
