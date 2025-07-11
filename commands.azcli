@@ -61,16 +61,16 @@ curl -X POST "http://localhost:8080/realms/demo-realm/protocol/openid-connect/to
   -d "username=demo-user" \
   -d "password=demo" > token.json
 
+# Mac/Linxux:
+export TOKEN=$(grep -o '"access_token":"[^"]*"' token.json | sed 's/.*:"//;s/"$//')
+echo $TOKEN
+
 # Windows:
 # Abre el archivo token.json y copia el valor del campo access_token; este es el
 # token de acceso que se usará para acceder a los endpoints protegidos
 # de la aplicación
 # Pega el token en el siguiente comando para definir una variable de entorno TOKEN
 set TOKEN=""
-
-# Mac/Linxux:
-export TOKEN=$(grep -o '"access_token":"[^"]*"' token.json | sed 's/.*:"//;s/"$//')
-echo $TOKEN
 
 # Puedes usar https://jwt.io/ para validar el token y ver su contenido
 
@@ -97,9 +97,20 @@ curl -X GET "http://localhost:5003/protected"
 curl -X GET "http://localhost:5003/protected" \
   -H "Authorization: Bearer $TOKEN"
 
+# Usa este endpoint para acceder a un recurso para el cual se necesita cierto
+# rol; debería darte un error cuando el rol no está asignado.
+#
+# En Keycloak:
+# - En Realm Roles crea un rol "confidencial"
+# - En el usuario "demo-user" agrega ese rol
+#
+# Obtén nuevamente el token. Ahora el comando debería funcionar
+curl -X GET "http://localhost:5003/confidencial" \
+  -H "Authorization: Bearer $TOKEN"
 
-curl -H "Authorization: Bearer $TOKEN" http://localhost:5003/confidencial
 curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/integridad
 curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/no-repudio
 curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/rendicion-cuentas
 curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/autenticidad
+
+

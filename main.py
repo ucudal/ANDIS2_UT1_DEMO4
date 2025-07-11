@@ -343,6 +343,20 @@ async def protected_route(token_data: Dict = Depends(verify_token)):
         "roles": token_data.get("realm_access", {}).get("roles", [])
     }
 
+@app.get("/confidencial")
+def confidencial(user=Depends(verify_token)):
+    realm_access = user.get("realm_access", {})
+    if not realm_access:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    roles = realm_access.get("roles", [])
+    if not roles or "confidencial" not in roles:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    logger.info(f"user: {user['preferred_username']}, acceso_confidencial")
+    return {"msg": f"Hola {user['preferred_username']}, accediste a información confidencial."}
+
+
 @app.get("/user-info")
 async def get_user_info(token_data: Dict = Depends(verify_token)):
     """Extract user information from JWT token"""
