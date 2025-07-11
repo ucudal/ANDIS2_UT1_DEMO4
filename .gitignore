@@ -212,6 +212,7 @@ __marimo__/
 # Keycloak
 keycloak_data/
 
-# JSON generated files
+# Demo generated files
 token.json
 debug_token.json
+logs.csv
