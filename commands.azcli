@@ -1,0 +1,105 @@
+# Crear un entorno virtual
+python3 -m venv venv
+
+# Activar el entorno - Windows:
+venv\Scripts\activate
+# MacOS/Linux:
+source venv/bin/activate
+
+# Instalar dependencias
+pip3 install -r requirements.txt
+
+# Iniciar Keycloak
+docker-compose up
+
+# Abrir Keycloak en el navegador: http://127.0.0.1:8080 Iniciar sesión con
+# usuario: admin y contraseña: admin
+#
+# Crear un Realm llamado "demo-realm"
+#
+# Crear un cliente llamado "demo-client" con las siguientes configuraciones:
+# - Client type: OpenID Connect
+# - Client ID: demo-client
+# Next
+# - Client authentication: On
+# - Authorization: On
+# - Standard Flow: Checked; Direct Access Grants: Checked
+# - PKCE Method: S256
+# Next
+# - Valid Redirect URIs: http://localhost:5003/*
+#
+# En la sección Credentials, copiar el Client Secret y pegarlo en el archivo
+# .env en KEYCLOAK_CLIENT_SECRET; lo usarás más adelante
+#
+# Crear un usuario con:
+# - Email verifified: On
+# - Username: demo-user
+# - Email "demo@ucu.edu.uy"
+# - First Name: Demo
+# - Last Name: User
+# Luego agregar en Credentials una contraseña "demo"; desmarcar la opción
+# Temporary
+
+# En otra terminal, ejecutar la aplicación main.py
+uvicorn main:app --reload --host 127.0.0.1 --port 5003
+
+# Mira la documentación de los endpoints en Swagger
+# http://localhost:5003/docs
+
+# En otra terminal, ejecuta el comando para probar la API; comprueba que tanto
+# 'status' como 'keycloak_connection' están 'healty'
+curl http://localhost:5003/health
+
+# Ejecuta este comando para obtener un token de acceso para el usuario
+# "demo-user" con la contraseña "demo"; el client_secret debe coincidir con el
+# que copiaste en el archivo .env en KEYCLOAK_CLIENT_SECRET
+curl -X POST "http://localhost:8080/realms/demo-realm/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "client_id=demo-client" \
+  -d "client_secret=uFsekJgcZY5cG02Y8agb2Sd9lJQFqy5E" \
+  -d "grant_type=password" \
+  -d "username=demo-user" \
+  -d "password=demo" > token.json
+
+# Windows:
+# Abre el archivo token.json y copia el valor del campo access_token; este es el
+# token de acceso que se usará para acceder a los endpoints protegidos
+# de la aplicación
+# Pega el token en el siguiente comando para definir una variable de entorno TOKEN
+set TOKEN=""
+
+# Mac/Linxux:
+export TOKEN=$(grep -o '"access_token":"[^"]*"' token.json | sed 's/.*:"//;s/"$//')
+echo $TOKEN
+
+# Puedes usar https://jwt.io/ para validar el token y ver su contenido
+
+# Usa este endpoint para obtener información del token
+curl -X GET "http://localhost:5003/token-info" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Usa este endpoint para obtener información del usuario autenticado
+curl -X GET "http://localhost:5003/user-info" \
+  -H "Authorization: Bearer $TOKEN"
+
+# El código de los próximos dos comandos está comentado; descoméntalos si
+# quieres depurar los tokens y ver más información sobre ellos
+
+# curl -X GET "http://localhost:5003/debug-token" \
+#   -H "Authorization: Bearer $TOKEN" > debug_token.json
+
+# curl -X GET "http://localhost:8000/protected-debug" \
+#   -H "Authorization: Bearer $TOKEN"
+
+# Usa este endpoint para acceder a un recurso protegido; el primer comando falla
+curl -X GET "http://localhost:5003/protected"
+# El comando funciona cuando usas el token de acceso obtenido anteriormente
+curl -X GET "http://localhost:5003/protected" \
+  -H "Authorization: Bearer $TOKEN"
+
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5003/confidencial
+curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/integridad
+curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/no-repudio
+curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/rendicion-cuentas
+curl -H "Authorization: Bearer TU_ACCESS_TOKEN" http://localhost:8000/autenticidad
